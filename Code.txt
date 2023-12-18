@@ -1,0 +1,207 @@
+#include "thingProperties.h"
+#include <Arduino_MKRIoTCarrier.h>
+MKRIoTCarrier carrier;
+int pir;
+int pirState = 0;
+int light = 0;
+int temperature = 0;
+int humidity = 0;
+String light_alarm_state = "";
+String movement_alarm_state = "";
+String shake_alarm_state = "";
+String Temperature_alarm_state = "";
+String Humidity_alarm_state = "";
+float Gx, Gy, Gz;
+uint32_t redColor = carrier.leds.Color( 0, 255, 0);
+uint32_t noColor = carrier.leds.Color( 0, 0, 0);
+void setup() {
+  // Initialize serial and wait for port to open:
+  Serial.begin(9600);
+  // This delay gives the chance to wait for a Serial Monitor without blocking if none is found
+  delay(1500); 
+  // Defined in thingProperties.h
+  initProperties();
+  // Connect to Arduino IoT Cloud
+  ArduinoCloud.begin(ArduinoIoTPreferredConnection);
+  //Get Cloud Info/errors , 0 (only errors) up to 4
+  setDebugMessageLevel(2);
+  ArduinoCloud.printDebugInfo();
+ArduinoCloud.update();
+  //Wait to get cloud connection to init the carrier
+  while (ArduinoCloud.connected() != 1) {
+    ArduinoCloud.update();
+    delay(500);
+  }
+  delay(500);
+  CARRIER_CASE = false;
+  carrier.begin();
+  pir = carrier.getBoardRevision() == 1 ? A5 : A0;
+  carrier.display.setRotation(0);
+  delay(1500);
+  pinMode(pir, INPUT);
+}
+void loop() {
+  ArduinoCloud.update();
+  // Your code here
+  pirState = digitalRead(pir);
+temperature = carrier.Env.readTemperature();
+  float humidity = carrier.Env.readHumidity();
+ 
+delay (1000); 
+  while (!carrier.Light.colorAvailable()) {
+    delay(5);
+  }
+  int none; //not gonna be used
+  carrier.Light.readColor(none, none, none, light);
+  // read the IMU values
+  carrier.IMUmodule.readGyroscope(Gx, Gy, Gz);
+  //Uncomment this code to see values in Serial Monitor
+    Serial.print("Gyroscope: ");
+    Serial.print("\tX: ");
+    Serial.print(Gx);
+    Serial.print("\tY: ");
+    Serial.print(Gy);
+    Serial.print("\tZ: ");
+    Serial.println(Gz);
+    Serial.print("Light: ");
+    Serial.println(light);
+    Serial.print("PIR State: ");
+    Serial.println(pirState);
+    Serial.print("Temperature: ");
+    Serial.println(temperature);
+    Serial.print("Humidity: ");
+    Serial.println(humidity);
+    delay(200);
+
+//temperature alarm, can be activated from cloud
+  // if (temperature_alarm == true) {
+    if (temperature > 10) {
+      temperature_event = true;
+    }
+
+    if (temperature_event == true) {
+      message_update = "temperature alarm breached!";
+      alarm();
+    }
+  //}
+
+  //Humidity alarm, can be activated from cloud
+    if (humidity_alarm == true) {
+    if (humidity > 60) {
+      humidity_event = true;
+    }
+
+    if (humidity_event == true) {
+      message_update = "humidity alarm breached!";
+      alarm();
+    }
+  }
+
+  //light alarm, can be activated from cloud
+  if (light_alarm == true) {
+    if (light > 200) {
+      light_event = true;
+    }
+
+    if (light_event == true) {
+      message_update = "Light alarm breached!";
+      alarm();
+    }
+  }
+  //movement alarm, can be activated from cloud
+  if (movement_alarm == true) {
+    if (pirState == HIGH) {
+      movement_event = true;
+    }
+    if (movement_event == true) {
+      message_update = "Movement alarm breached!";
+      alarm();
+    }
+  }
+  //shake alarm, can be activated from cloud
+  if (shake_alarm == true) {
+    if (Gy > 100 || Gy < -100) {
+      shake_event = true;
+    }
+    if (shake_event == true) {
+      message_update = "Shake alarm breached!";
+      alarm();
+    }
+  }
+  delay(100);
+}
+// the alarm() function blinks the RGB LEDs and turns the buzzer on and off
+void alarm() {
+  carrier.leds.fill(redColor, 0, 5);
+  carrier.leds.show();
+  carrier.Buzzer.sound(500);
+  delay(500);
+  carrier.leds.fill(noColor, 0, 5);
+  carrier.leds.show();
+  carrier.Buzzer.noSound();
+  delay(500);
+}
+// the updateScreen() function updates the screen whenever an alarm has been activated from the cloud
+void updateScreen() {
+  carrier.display.fillScreen(ST77XX_BLACK);
+  carrier.display.setTextColor(ST77XX_WHITE);
+  carrier.display.setTextSize(2);
+  carrier.display.setCursor(25, 60);
+  carrier.display.print(light_alarm_state);
+  carrier.display.setCursor(10, 100);
+  carrier.display.print(movement_alarm_state);
+  carrier.display.setCursor(30, 140);
+  carrier.display.print(shake_alarm_state);
+}
+void onLightAlarmChange() {
+  // Do something
+  if (light_alarm == true) {
+    light_alarm_state = "LIGHT ALARM: ON";
+  } else {
+    light_alarm_state = "LIGHT ALARM: OFF";
+  }
+  updateScreen();
+}
+void onShakeAlarmChange() {
+  // Do something
+  if (shake_alarm == true) {
+    shake_alarm_state = "SHAKE ALARM: ON";
+  } else {
+    shake_alarm_state = "SHAKE ALARM: OFF";
+  }
+  updateScreen();
+}
+void onMovementAlarmChange() {
+  // Do something
+  if (movement_alarm == true) {
+    movement_alarm_state = "MOVEMENT ALARM: ON";
+  } else {
+    movement_alarm_state = "MOVEMENT ALARM: OFF";
+  }
+  updateScreen();
+}
+
+void onMessageUpdateChange() {
+  // Do something
+}
+void onShakeEventChange() {
+  // Do something
+}
+void onMovementEventChange() {
+  // Do something
+}
+void onLightEventChange() {
+  // Do something
+}
+void onTemperatureAlarmChange()  {
+  // Add your code here to act upon TemperatureAlarm change
+}
+void onTemperatureEventChange()  {
+  // Add your code here to act upon TemperatureEvent change
+}
+void onHumidityAlarmChange()  {
+  // Add your code here to act upon HumidityAlarm change
+}
+void onHumidityEventChange()  {
+  // Add your code here to act upon HumidityEvent change
+}
